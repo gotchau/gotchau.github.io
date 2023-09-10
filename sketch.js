@@ -5,7 +5,7 @@ let checkboxAddNoise;
 let checkboxNavTest;
 
 function setup() {
-  room = new Room(1200, 800);
+  room = new Room(800, 600);
   human = new Human(room.width * 3.0 / 4.0, room.height / 2);
   robot = new Robot(room.width * 1.0 / 4.0, room.height / 2);
 
