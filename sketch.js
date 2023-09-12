@@ -3,18 +3,23 @@ let room, human, robot;
 let checkboxRoomHuman, checkboxRoomRobot, checkboxRobotHuman;
 let checkboxAddNoise;
 let checkboxNavTest;
+let checkboxRoomRobotThenHuman;
 
 function setup() {
+  pixelDensity(3.0);
+  
   room = new Room(800, 600);
   human = new Human(room.width * 3.0 / 4.0, room.height / 2);
   robot = new Robot(room.width * 1.0 / 4.0, room.height / 2);
 
   createCanvas(room.width, room.height);
-  checkboxRoomHuman = createCheckbox('Помещение/Человек', false);
-  checkboxRoomRobot = createCheckbox('Помещение/Робот', false);
-  checkboxRobotHuman = createCheckbox('Робот/Человек', false);
+  checkboxRoomHuman = createCheckbox('Помещение->Человек', false);
+  checkboxRoomRobot = createCheckbox('Помещение->Робот', false);
+  checkboxRobotHuman = createCheckbox('Робот->Человек', false);
   checkboxAddNoise = createCheckbox('Добавить шум', false);
   checkboxNavTest = createCheckbox('Тест навигации', true);
+  checkboxRoomRobotThenHuman = createCheckbox('Помещение->Робот->Человек', true);
+  checkboxRoomRobotThenHumanPlusRoom = createCheckbox('"П->Р->Ч" + "Помещение"', true);
 
   angleMode(DEGREES);
 
@@ -40,8 +45,102 @@ function draw() {
     rectMode(CORNERS);
     rect(0, 0, room.width, room.height);
 
+    // генерация расстояний для последущей передачи в функцию вычисления координат
+    if (checkboxRoomRobotThenHuman.checked()) {
+      let robotAnchors = []; // точки анкеров
+
+      for (const robotDev of robot.devices) {
+        let points = [];
+
+        for (const roomDev of room.devices) {
+          let x = roomDev.absoluteX;
+          let y = roomDev.absoluteY;
+          let d = noisePercent(dist(roomDev.absoluteX, roomDev.absoluteY, robotDev.absoluteX, robotDev.absoluteY), 0.05);
+
+          points.push({ x, y, d });
+        }
+        robotAnchors.push(multilateration(points)); //вычисление
+      }
+
+      //генерация расстояний для последущей передачи в функцию вычисления координат
+      let robotHumanPoints = [];
+      for (const anchor of robotAnchors) {
+        fill(0);
+        circle(anchor.x, anchor.y, 10);
+
+        let x = anchor.x;
+        let y = anchor.y;
+        let d = noisePercent(dist(anchor.x, anchor.y, human.devices[0].absoluteX, human.devices[0].absoluteY), 0.05);
+
+        robotHumanPoints.push({ x, y, d });
+      }
+
+      //вычисленное положение человека через координаты робота
+      let humnanCalcPosition = multilateration(robotHumanPoints);
+
+      // вывод с доработкой и без
+      if (checkboxRoomRobotThenHumanPlusRoom.checked()) { //вывод с доработкой (ср.арфм)
+        let roomRobotThenHumanPlusRoomPoints = [];
+
+        for (const roomDev of room.devices) {
+          fill(0);
+          circle(roomDev.x, roomDev.y, 10);
+
+          let x = roomDev.x;
+          let y = roomDev.y;
+          let d = noisePercent(dist(roomDev.x, roomDev.y, human.devices[0].absoluteX, human.devices[0].absoluteY), 0.05);
+
+          roomRobotThenHumanPlusRoomPoints.push({ x, y, d });
+        }
+
+        let humnanRoomCalcPosition = multilateration(roomRobotThenHumanPlusRoomPoints);
+        let humanCombiCalcPositionX = (humnanRoomCalcPosition.x + humnanCalcPosition.x) / 2;
+        let humanCombiCalcPositionY = (humnanRoomCalcPosition.y + humnanCalcPosition.y) / 2;
+
+        fill(0);
+        circle(humanCombiCalcPositionX, humanCombiCalcPositionY, 10);
+
+        let humanRealX = human.devices[0].absoluteX;
+        let humanRealY = human.devices[0].absoluteY;
+
+        //отрисовка линий "помещения"
+        for (const roomDev of room.devices) {
+          lineWithDist(humanCombiCalcPositionX, humnanCalcPosition.y, roomDev.x, roomDev.y);
+        }
+
+        //отрисовка линий от анкеров робота
+        for (const rhp of robotHumanPoints) {
+          lineWithDist(humnanCalcPosition.x, humnanCalcPosition.y, rhp.x, rhp.y);
+        }
+
+        fill(0);
+        noStroke();
+        textSize(15);
+        text(`Δx: ${(humanRealX - humnanCalcPosition.x).toFixed(2)}\nΔy: ${(humanRealY - humnanCalcPosition.y).toFixed(2)}`, humanRealX + 30, humanRealY + 30);
+      }
+      else {
+        fill(0);
+        circle(humnanCalcPosition.x, humnanCalcPosition.y, 10);
+
+        let humanRealX = human.devices[0].absoluteX;
+        let humanRealY = human.devices[0].absoluteY;
+
+        for (const rhp of robotHumanPoints) {
+          lineWithDist(humnanCalcPosition.x, humnanCalcPosition.y, rhp.x, rhp.y);
+        }
+
+        fill(0);
+        noStroke();
+        textSize(15);
+        text(`Δx: ${(humanRealX - humnanCalcPosition.x).toFixed(2)}\nΔy: ${(humanRealY - humnanCalcPosition.y).toFixed(2)}`, humanRealX + 30, humanRealY + 30);
+      }
+    }
+
     if (checkboxRoomHuman.checked()) {
-      displayCalculatePoint(human, room);
+      let np = displayCalculatePoint(human, room);
+
+      textSize(15);
+      text(`Δx: ${(human.x - np.x).toFixed(2)}\nΔy: ${(human.y - np.y).toFixed(2)}`, human.x + 30, human.y + 30);
     }
     if (checkboxRoomRobot.checked()) {
       displayCalculatePoint(robot, room);
@@ -88,6 +187,7 @@ function displayCalculatePoint(first, second) {
       circle(newPoint.x, newPoint.y, 10, 10);
     }
   });
+  return newPoint;
 }
 
 function multilateration(points) {
@@ -276,8 +376,10 @@ class Robot {
     noStroke();
     fill(51);
 
+    //if (!checkboxNavTest.checked()) {
     textSize(15);
     text(`x: ${this.x.toFixed(2)}\ny: ${this.y.toFixed(2)}\nr: ${this.angle.toFixed(2)}`, this.x + 70, this.y + 70);
+    //}
 
     push();
     translate(this.x, this.y);
@@ -346,9 +448,10 @@ class Human {
     noStroke();
     fill(51);
 
-    textSize(15);
-    text(`x: ${this.x.toFixed(2)}\ny: ${this.y.toFixed(2)}\nr: ${this.angle.toFixed(2)}`, this.x + 30, this.y + 30);
-
+    if (!checkboxNavTest.checked()) {
+      textSize(15);
+      text(`x: ${this.x.toFixed(2)}\ny: ${this.y.toFixed(2)}\nr: ${this.angle.toFixed(2)}`, this.x + 30, this.y + 30);
+    }
     push();
     translate(this.x, this.y);
     rotate(this.angle);
