@@ -94,10 +94,20 @@ function dataRecord(data) {
     dataOut.push(data);
   }
   if (dataOut.length === 100) {
+    // let median = calculateMedian(dataOut);
+    // let average = calculateAverage(dataOut);
+    // print({ average, median, dataOut });
+
     print(dataOut);
+
     dataOut = [];
     readMeasurements = false;
   }
+}
+
+function calculateAverage (d) {
+  const sum = d.reduce((a, b) => a + b, 0);
+  return (sum / d.length) || 0;
 }
 
 function displayRoomRobotThenHuman() {
